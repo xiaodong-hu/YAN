@@ -28,17 +28,8 @@ struct my_datatype{T} end # user-defined datatype (see below)
 @assert symtype(z) isa my_datatype
 ```
 
-### Registration User-defined Operators
-```julia
-function my_func(x)
-    (x,x)
-end
-
-register_op(:my_func) # register to `UNARY_OP_SET`
-@assert :my_func in UNARY_OP_SET
-```
-
 ### Substitution and Evaluation 
+Substituion is **literal**, i.e. **lazy without any evaluation**, even for numerical parts like `1 * 2`.
 ```julia 
 # scalar substitution to symbolic expression
 ex = sin(x) * y / (exp(im * z) + 1)^x
@@ -60,10 +51,77 @@ ex = [x x+1; x^2 1//x]
 ```
 
 ## Benchmark
+Symbolic substituion and evaluation on huge 100*100 matrix of form $A_{ij}=\sin(ix+jy)$ and of assignment $x=1, y=2$
+```julia
+using YAN, BenchmarkTools
+
+@btime begin
+    YAN.@vars x y
+    test_array = Matrix{YAN.MathExpr}(undef, 100, 100)
+    for i in 1:100, j in 1:100
+        test_array[i, j] = sin(i * x + j * y)
+    end
+    ex = YAN.subs.(test_array, Ref(Dict(x => 1, y => 2)))
+    YAN.evaluate.(ex)
+end
+```
+finishes in `19.439 ms (350039 allocations: 15.41 MiB)` on my laptop `13th Gen Intel i7-1365U`.
 
 
+### Registration of User-defined Operators (todo!)
+```julia
+function my_func(x)
+    (x,x)
+end
+
+register_op(:my_func) # register to `UNARY_OP_SET`
+@assert :my_func in UNARY_OP_SET
+
+# todo for for symbols that are not defined yet
+```
 
 ## Pre-defined Operators
+The operator set can be changed with user-defined operators through method `register_op(::Symbol)`
+```julia
+const UNARY_OP_SET = Set{Symbol}([
+    # arithmetic functions
+    :-,
+    :inv,
+    :abs,
+    :real,
+    :imag,
+    :sqrt,
+    # trigonometric functions
+    :sin,
+    :cos,
+    :tan,
+    :asin,
+    :acos,
+    :atan,
+    :exp,
+    :log,
+    # linear algebra functions (require `using LinearAlgebra`)
+    :det,
+    :tr,
+    :transpose,
+    :hermitian,
+    :adjoint,
+    :eigen,
+    :svd,
+    :qr,
+    :lu,
+])
+
+const BINARY_OP_SET = Set{Symbol}([
+    :+,
+    :-,
+    :*,
+    :/,
+    ://,
+    :^,
+    :log,
+])
+```
 
 
-## Todo list
+## Todo
