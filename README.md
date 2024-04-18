@@ -2,7 +2,7 @@
 
 Neat and Fast Julia Package for Symbolic Computation.
 
-`YAN.jl` is a julia package for construction and *fast* AST transformation on **Symbolic Mathematical Expressions**. YAN is named for Chinese character 「演」, which means *transformation*, and Chinese character 「衍」, which means *infinity* (和之以天倪，因之以曼衍 —— 「庄子·齐物论」).
+`YAN.jl` is a julia package for construction and AST transformation on symbolic mathematical expressions. YAN is named for Chinese character 「演」, which means *transformation*, corresponding to AST transformation of math expression, and Chinese character 「衍」, which means *infinity* (和之以天倪，因之以曼衍 —— 「庄子·齐物论」), corresponding to the infinite capability of the symbolic expressions.
 
 ## Usage
 Bare package `YAN` DO NOT register any pre-defined operators for flexibility, which means you can use it to construct basic algebraic structure which is even not a ring or or module. Complicated relations such as non-commutative algebras can also be constructed.
@@ -122,6 +122,5 @@ const BINARY_OP_SET = Set{Symbol}([
     :log,
 ])
 ```
-
 
 ## Todo
