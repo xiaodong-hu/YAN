@@ -98,9 +98,13 @@ const UNARY_OP_SET = Set{Symbol}([
     :asin,
     :acos,
     :atan,
+    :rad,
+    :rad2deg,
+    :anlge,
     :exp,
     :log,
     # linear algebra functions (require `using LinearAlgebra`)
+    :norm,
     :det,
     :tr,
     :transpose,
@@ -113,13 +117,18 @@ const UNARY_OP_SET = Set{Symbol}([
 ])
 
 const BINARY_OP_SET = Set{Symbol}([
+    # # boolean function
+    # :(==),
+    # arithmetic functions
     :+,
     :-,
     :*,
     :/,
     ://,
     :^,
+    # other functions
     :log,
+    :atan
 ])
 ```
 
