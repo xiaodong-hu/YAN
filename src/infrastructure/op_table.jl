@@ -65,9 +65,9 @@ const UNARY_OP_SET = Set{Symbol}([
     :qr,
     :lu,
 
-    # reserved key words
-    :hold,
-    :release_hold,
+    # # reserved key words
+    # :hold,
+    # :release_hold,
 ])
 
 
@@ -87,41 +87,41 @@ const BINARY_OP_SET = Set{Symbol}([
     # other functions
     :log,
     :atan,
-    # linear algebra functions (require `using LinearAlgebra`)
-    # :kron,
 ])
 
 
 # ============================================================================================================================
 # ======================================== Operator Registration and Updates =================================================
 # ============================================================================================================================
-function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_name::Symbol=:Main, isa_ring::Bool=true)
+function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_name::Symbol=:Main)
     try
         println("  Importing Predefined Op ————————————————————————————— `$module_name.$op`")
 
-        @match nargs begin
-            1 => begin
-                @eval (($module_name.$op)(x::YAN.MathTerm) = YAN.UnaryTerm(Symbol($op), x))
-                @eval (($module_name.$op)(x::YAN.MathExpr) = ($module_name.$op)(x.repr) |> YAN.MathExpr)
-            end
-            2 => begin
-                # general case
-                @eval (($module_name.$op)(x::YAN.MathTerm, y::YAN.MathTerm) = YAN.BinaryTerm(Symbol($op), x, y))
-                @eval (($module_name.$op)(x::YAN.MathExpr, y::YAN.MathExpr) = ($module_name.$op)(x.repr, y.repr) |> YAN.MathExpr)
+        if nargs == 1
+            # general case (without simplification)
+            @eval (($module_name.$op)(x::YAN.MathExpr) = YAN.UnaryTerm(Symbol($op), x.repr) |> YAN.MathExpr)
+            @eval (($module_name.$op)(x::YAN.MathTerm) = YAN.UnaryTerm(Symbol($op), x)) # we also need this for fast evaluation
 
-                @eval (($module_name.$op)(x::T, y::YAN.MathTerm) where {T<:Number} = YAN.BinaryTerm(Symbol($op), YAN.Num(x), y))
-                @eval (($module_name.$op)(x::T, y::YAN.MathExpr) where {T<:Number} = ($module_name.$op)(x, y.repr) |> YAN.MathExpr)
 
-                # Because `Base.^(::Number, ::Integer)` is already defined. we need to put extra efforts to avoid type ambiguities here (recall that we set `MathExpr<:Number`)
-                if op == :^
-                    @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Integer} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y)))
-                    @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Integer} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
-                    @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y)))
-                    @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
-                else
-                    @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y)))
-                    @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
-                end
+        elseif nargs == 2
+            # general case
+            @eval (($module_name.$op)(x::YAN.MathExpr, y::YAN.MathExpr) = YAN.BinaryTerm(Symbol($op), x.repr, y.repr) |> YAN.MathExpr)
+            @eval (($module_name.$op)(x::YAN.MathTerm, y::YAN.MathTerm)::YAN.MathTerm = YAN.BinaryTerm(Symbol($op), x, y)) # we also need this for fast evaluation
+
+            @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x.repr, YAN.Num(y)) |> YAN.MathExpr)
+            @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y))) # we also need this for fast evaluation
+
+            @eval (($module_name.$op)(x::T, y::YAN.MathExpr) where {T<:Number} = YAN.BinaryTerm(Symbol($op), YAN.Num(x), y.repr) |> YAN.MathExpr)
+            @eval (($module_name.$op)(x::T, y::YAN.MathTerm) where {T<:Number} = YAN.BinaryTerm(Symbol($op), YAN.Num(x), y)) # we also need this for fast evaluation
+
+
+            # Because `Base.^(::Number, ::Integer)` is already defined. we need to take extra efforts to avoid type ambiguities here (recall that we set `MathExpr<:Number`)
+            if op == :^
+                @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Integer} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
+                @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Integer} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y))) # we also need this for fast evaluation
+
+                @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
+                @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y))) # we also need this for fast evaluation
             end
         end
 
@@ -147,16 +147,16 @@ Generate global method tables for predefined unary and binary operators
 ---
 This should only be called at the beginning when the package is loaded.
 """
-function initialize_global_method_table_for_pre_defined_op!(; isa_ring::Bool=true)
+function initialize_global_method_table_for_pre_defined_op!()
     for pkg in YAN.MODULE_DEPENDENCE
         for op in YAN.UNARY_OP_SET
             if op in names(eval(pkg))
-                register_op_to_global_method_table!(op, 1; module_name=pkg, isa_ring=isa_ring)
+                register_op_to_global_method_table!(op, 1; module_name=pkg)
             end
         end
         for op in YAN.BINARY_OP_SET
             if op in names(eval(pkg))
-                register_op_to_global_method_table!(op, 2; module_name=pkg, isa_ring=isa_ring)
+                register_op_to_global_method_table!(op, 2; module_name=pkg)
             end
         end
     end

@@ -5,7 +5,6 @@
 # important to make sure the construction of array and sparse array of both symbolic and numerical values to be OK
 Base.convert(::Type{U}, x::T) where {U<:Sym,T<:Number} = _sym(x)
 
-Base.convert(::Type{U}, x::T) where {U<:MathTerm,T<:Number} = Num(x)
 
 # important to make sure parametric type is correctly inferred. For example `[1,x] isa Vector{MathExpr}` instead of `Vector{Number}`
 Base.convert(::Type{U}, x::T) where {U<:MathExpr,T<:Number} = MathExpr(Num(x))
