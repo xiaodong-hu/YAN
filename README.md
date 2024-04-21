@@ -29,25 +29,23 @@ struct my_datatype{T} end # user-defined datatype (see below)
 ```
 
 ### Substitution and Evaluation 
-Substituion is **literal**, i.e. **lazy without any evaluation**, even for numerical parts like `1 * 2`.
+Substitution is not lazy by default. But it can be **literal**, i.e. **lazy without any evaluation**, even for numerical parts like `1 * 2`.
 ```julia 
 # scalar substitution to symbolic expression
 ex = sin(x) * y / (exp(im * z) + 1)^x
-@assert subs(ex, Dict(x => y, y => z, z => x)) == sin(y) * z / (exp(im * x) + 1)^y
+@test subs(ex, Dict(x => y, y => z, z => x)) == sin(y) * z / (exp(im * x) + 1)^y
 
 # scalar substitution to numerical result (with evaluation)
 ex = x^x
-@assert  subs(ex, Dict(x => 0)) |> evaluate == 1
-ex = x^x^x
-@assert  subs(ex, Dict(x => 0)) |> evaluate == 0
+@test subs(ex, Dict(x => 0); lazy=true) |> evaluate == 1
 
 # array substitution to symbolic expression
 ex = [sin(x) 1-cos(y); x^tan(z) 2*x]
-@assert  subs.(ex, Ref(Dict(1 => x, x => y, y => z, z => x))) == [sin(y) x-cos(z); y^tan(x) 2*y] # Note: even 1 is replaced!
+@test subs.(ex, Ref(Dict(1 => x, x => y, y => z, z => x))) == [sin(y) x-cos(z); y^tan(x) 2*y] # Note: even 1 is replaced!
 
 # array substitution to numerical result (with evaluation)
 ex = [x x+1; x^2 1//x]
-@assert subs.(ex, Ref(Dict(x=>2))) .|> evaluate == [2 3; 4 1//2]
+@test subs.(ex, Ref(Dict(x => 2))) .|> evaluate == [2 3; 4 1//2]
 ```
 
 ## Benchmark
@@ -61,29 +59,42 @@ using YAN, BenchmarkTools
     for i in 1:100, j in 1:100
         test_array[i, j] = sin(i * x + j * y)
     end
-    ex = YAN.subs.(test_array, Ref(Dict(x => 1, y => 2)))
-    YAN.evaluate.(ex)
+    ex = YAN.subs.(test_array, Ref(Dict(x => 1, y => 2)); lazy=false)
 end
 ```
-finishes in `19.439 ms (350039 allocations: 15.41 MiB)` on my laptop `13th Gen Intel i7-1365U`.
+finishes in `27.643 ms (590128 allocations: 20.14 MiB)` in a single thread of `13th Gen Intel i7-1365U` on my laptop.
 
-
-### Registration of User-defined Operators (todo!)
-```julia
-function my_func(x)
-    (x,x)
-end
-
-register_op(:my_func) # register to `UNARY_OP_SET`
-@assert :my_func in UNARY_OP_SET
-
-# todo for for symbols that are not defined yet
-```
 
 ## Pre-defined Operators
 The operator set can be changed with user-defined operators through method `register_op(::Symbol)`
 ```julia
 const UNARY_OP_SET = Set{Symbol}([
+    # numeric type constructors
+    :Real,
+    # <: AbstractFloat
+    :BigFloat,
+    :Float64,
+    :Float32,
+    :Float16,
+    # <: Integer
+    :Bool,
+    :BigInt,
+    :Int128,
+    :Int64,
+    :Int32,
+    :Int16,
+    :Int8,
+    :UInt128,
+    :UInt64,
+    :UInt32,
+    :UInt16,
+    :UInt8,
+    # <: Complex (and :adjoint is defined)
+    :Complex,
+    :ComplexF64,
+    :ComplexF32,
+    :ComplexF16,
+
     # arithmetic functions
     :-,
     :inv,
@@ -109,11 +120,16 @@ const UNARY_OP_SET = Set{Symbol}([
     :tr,
     :transpose,
     :hermitian,
+    :Hermitian,
     :adjoint,
     :eigen,
     :svd,
     :qr,
     :lu,
+
+    # reserved key words
+    :hold,
+    :release_hold,
 ])
 
 const BINARY_OP_SET = Set{Symbol}([
@@ -132,4 +148,20 @@ const BINARY_OP_SET = Set{Symbol}([
 ])
 ```
 
+### Registration of User-defined Operators (todo!)
+```julia
+function my_func(x)
+    (x,x)
+end
+
+register_op(:my_func) # register to `UNARY_OP_SET`
+@assert :my_func in UNARY_OP_SET
+
+# todo for for symbols that are not defined yet
+```
+
 ## Todo
+
+1. add registration of undefined functions
+2. add `hold` and `release_hold` like Mathematica 
+3. add support for simplication rules

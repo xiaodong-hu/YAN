@@ -64,6 +64,10 @@ const UNARY_OP_SET = Set{Symbol}([
     :svd,
     :qr,
     :lu,
+
+    # reserved key words
+    :hold,
+    :release_hold,
 ])
 
 

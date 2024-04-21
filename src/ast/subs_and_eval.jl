@@ -66,11 +66,9 @@ function evaluate(m::MathTerm)::Union{MathTerm,Number}
         Var(var) => Var(var)
         UnaryTerm(op, arg) => begin
             (eval(op))(evaluate(arg))
-            # @eval ($op)(evaluate($arg))
         end
         BinaryTerm(op, left, right) => begin
             (eval(op))(evaluate(left), evaluate(right))
-            # @eval ($op)(evaluate($left), evaluate($right))
         end
     end
 end
@@ -78,7 +76,7 @@ end
 evaluate(x::MathExpr)::Union{Number,MathExpr} =
     let eval_res = evaluate(x.repr)
         @match eval_res begin
-            ::MathTerm => MathExpr(evaluate(x.repr))
+            ::MathTerm => MathExpr(eval_res)
             _ => eval_res
         end
     end
