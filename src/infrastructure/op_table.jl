@@ -7,6 +7,32 @@ Pre-defined Unary Operators
 It can be changed with user-defined operators through `register_op`
 # """
 const UNARY_OP_SET = Set{Symbol}([
+    # numeric type constructors
+    :Real,
+    # <: AbstractFloat
+    :BigFloat,
+    :Float64,
+    :Float32,
+    :Float16,
+    # <: Integer
+    :Bool,
+    :BigInt,
+    :Int128,
+    :Int64,
+    :Int32,
+    :Int16,
+    :Int8,
+    :UInt128,
+    :UInt64,
+    :UInt32,
+    :UInt16,
+    :UInt8,
+    # <: Complex (and :adjoint is defined)
+    :Complex,
+    :ComplexF64,
+    :ComplexF32,
+    :ComplexF16,
+
     # arithmetic functions
     :-,
     :inv,
@@ -32,6 +58,7 @@ const UNARY_OP_SET = Set{Symbol}([
     :tr,
     :transpose,
     :hermitian,
+    :Hermitian,
     :adjoint,
     :eigen,
     :svd,
@@ -46,8 +73,6 @@ Pre-defined Binary Operators
 It can be changed with user-defined operators through `register_op`
 """
 const BINARY_OP_SET = Set{Symbol}([
-    # # boolean function
-    # :(==),
     # arithmetic functions
     :+,
     :-,
@@ -57,33 +82,52 @@ const BINARY_OP_SET = Set{Symbol}([
     :^,
     # other functions
     :log,
-    :atan
+    :atan,
+    # linear algebra functions (require `using LinearAlgebra`)
+    # :kron,
 ])
 
 
 # ============================================================================================================================
 # ======================================== Operator Registration and Updates =================================================
 # ============================================================================================================================
-function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_name::Symbol=:Main)
+function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_name::Symbol=:Main, isa_ring::Bool=true)
     try
         println("  Importing Predefined Op ————————————————————————————— `$module_name.$op`")
 
-        YAN.MLStyle.@match nargs begin
+        @match nargs begin
             1 => begin
-                # eval(Meta.parse("($module_name.:($op))(x::T) where {T<:YAN.MathExpr} = YAN.UnaryTerm(Symbol($op), x)"))
-                @eval ((YAN.$op)(x::YAN.MathExpr) = YAN.UnaryTerm(Symbol($op), x))
+                @eval (($module_name.$op)(x::YAN.MathTerm) = YAN.UnaryTerm(Symbol($op), x))
+                @eval (($module_name.$op)(x::YAN.MathExpr) = ($module_name.$op)(x.repr) |> YAN.MathExpr)
             end
             2 => begin
-                # eval(Meta.parse("($module_name.:($op))(x::T, y::U) where {T<:YAN.MathExpr, U<:MathExpr} = YAN.BinaryTerm(Symbol($op), x, y)"))
-                # eval(Meta.parse("($module_name.:($op))(x::T, y::U) where {T<:Number, U<:YAN.MathExpr} = YAN.BinaryTerm(Symbol($op), YAN.Var(x), y)"))
-                # eval(Meta.parse("($module_name.:($op))(x::T, y::U) where {T<:YAN.MathExpr, U<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Var(y))"))
-                @eval (YAN.$op)(x::YAN.MathExpr, y::YAN.MathExpr) = YAN.BinaryTerm(Symbol($op), x, y)
-                @eval (YAN.$op)(x::T, y::YAN.MathExpr) where {T<:Number} = YAN.BinaryTerm(Symbol($op), YAN.Var(x), y)
-                @eval (YAN.$op)(x::YAN.MathExpr, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Var(y))
+                # general case
+                @eval (($module_name.$op)(x::YAN.MathTerm, y::YAN.MathTerm) = YAN.BinaryTerm(Symbol($op), x, y))
+                @eval (($module_name.$op)(x::YAN.MathExpr, y::YAN.MathExpr) = ($module_name.$op)(x.repr, y.repr) |> YAN.MathExpr)
+
+                @eval (($module_name.$op)(x::T, y::YAN.MathTerm) where {T<:Number} = YAN.BinaryTerm(Symbol($op), YAN.Num(x), y))
+                @eval (($module_name.$op)(x::T, y::YAN.MathExpr) where {T<:Number} = ($module_name.$op)(x, y.repr) |> YAN.MathExpr)
+
+                # Because `Base.^(::Number, ::Integer)` is already defined. we need to put extra efforts to avoid type ambiguities here (recall that we set `MathExpr<:Number`)
+                if op == :^
+                    @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Integer} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y)))
+                    @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Integer} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
+                    @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y)))
+                    @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
+                else
+                    @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y)))
+                    @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
+                end
             end
         end
-        # eval(Meta.parse("export $op")) # export to `YAN` module
-        @eval (export $op) # export to `YAN` module
+
+        # specific for construction of AbstractArrray
+        @eval Base.zero(::Type{YAN.MathExpr}) = YAN.MathExpr(Num(0))
+        @eval Base.one(::Type{YAN.MathExpr}) = YAN.MathExpr(Num(1))
+
+
+        # escape to `YAN` module
+        @eval (export $op)
 
         return (op, nargs)
     catch
@@ -99,16 +143,16 @@ Generate global method tables for predefined unary and binary operators
 ---
 This should only be called at the beginning when the package is loaded.
 """
-function initialize_global_method_table_for_pre_defined_op!()
+function initialize_global_method_table_for_pre_defined_op!(; isa_ring::Bool=true)
     for pkg in YAN.MODULE_DEPENDENCE
         for op in YAN.UNARY_OP_SET
             if op in names(eval(pkg))
-                register_op_to_global_method_table!(op, 1; module_name=pkg)
+                register_op_to_global_method_table!(op, 1; module_name=pkg, isa_ring=isa_ring)
             end
         end
         for op in YAN.BINARY_OP_SET
             if op in names(eval(pkg))
-                register_op_to_global_method_table!(op, 2; module_name=pkg)
+                register_op_to_global_method_table!(op, 2; module_name=pkg, isa_ring=isa_ring)
             end
         end
     end

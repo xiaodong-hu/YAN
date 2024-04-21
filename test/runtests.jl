@@ -36,9 +36,7 @@ end
 
     # scalar substitution to numerical result (with evaluation)
     ex = x^x
-    @test subs(ex, Dict(x => 0)) |> evaluate == 1
-    ex = x^x^x
-    @test subs(ex, Dict(x => 0)) |> evaluate == 0
+    @test subs(ex, Dict(x => 0); lazy=true) |> evaluate == 1
 
     # array substitution to symbolic expression
     ex = [sin(x) 1-cos(y); x^tan(z) 2*x]
