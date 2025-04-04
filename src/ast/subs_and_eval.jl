@@ -75,6 +75,7 @@ function subs(m::MathExpr, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {
     end
 end
 subs(m::Number, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {T,U} = m
+subs(A::AbstractArray{T,N}, input_sub_rules::Dict{U,V}; lazy::Bool=false) where {T,U,V,N} = subs.(A, Ref(input_sub_rules); lazy=lazy)
 
 "Evaluation of a `MathTerm` Expression"
 function evaluate(m::MathTerm)::Union{MathTerm,Number}

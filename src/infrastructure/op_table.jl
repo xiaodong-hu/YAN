@@ -15,7 +15,6 @@ const UNARY_OP_SET = Set{Symbol}([
     :Float32,
     :Float16,
     # <: Integer
-    :Bool,
     :BigInt,
     :Int128,
     :Int64,
@@ -49,7 +48,7 @@ const UNARY_OP_SET = Set{Symbol}([
     :atan,
     :rad,
     :rad2deg,
-    :anlge,
+    :angle,
     :exp,
     :log,
     # linear algebra functions (require `using LinearAlgebra`)
@@ -84,6 +83,8 @@ const BINARY_OP_SET = Set{Symbol}([
     :/,
     ://,
     :^,
+    :isless,
+    # :(==),
     # other functions
     :log,
     :atan,
@@ -124,6 +125,9 @@ function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_na
                 @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y))) # we also need this for fast evaluation
             end
         end
+
+        # specific for construction of boolean expressions
+        # @eval Base.isless(x::YAN.MathExpr, y::Type{YAN.MathExpr}) = YAN.BinaryTerm(:<, x.repr, y.repr) |> YAN.MathExpr
 
         # specific for construction of AbstractArrray
         @eval Base.zero(::Type{YAN.MathExpr}) = YAN.MathExpr(Num(0))
