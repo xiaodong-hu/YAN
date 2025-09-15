@@ -1,10 +1,8 @@
-const DEFAULT_SYM_DATATYPE::Type = Float64 # concrete type is preferred for defaut!
-
-
-# ======================================= Symbolic Variable =======================================
+# ======================================== Core Data Structures for Symbolic Computation ===================================================
 """
 Struct `Sym{T}` for Symbolic Variable
 ---
+of datatype T.
 """
 struct Sym{T}
     string_repr::String # variable name
@@ -14,38 +12,11 @@ end
 _sym(T::Type, x) = Sym{T}(string(x))
 _sym(x::T) where {T<:Number} = Sym{T}(string(x))
 
-
 "helper function to get the datatype of a `Sym`"
 symtype(::Sym{T}) where {T} = T
 
-# ======================================= Symbolic Expression =======================================
-# "Abstract Type for ALL Symbolic Terms"
-# abstract type MathTerm end
 
-# "Numeric Term"
-# struct Num <: MathTerm
-#     num::Number
-# end
-
-# "Variable Term"
-# struct Var <: MathTerm
-#     var::Sym
-# end
-
-# "Unary Term"
-# struct UnaryTerm <: MathTerm
-#     op::Symbol
-#     arg::MathTerm
-# end
-
-# "Binary Term"
-# struct BinaryTerm <: MathTerm
-#     op::Symbol
-#     left::MathTerm
-#     right::MathTerm
-# end
-
-# only below `@data` can be used for `MLStyle.@match`
+# Core building blocks for symbolic expressions
 @data MathTerm <: Number begin
     Num(num::Number)
     Var(var::Sym)
@@ -65,27 +36,19 @@ function symtype(m::MathTerm)
 end
 
 """
-Struct `MathExpr` for ALL Symbolic expression
+Struct `MathExpr` for ALL Symbolic Expressions
 ---
-as a concrete type wrapper for `MathTerm`. Note: we need MathExpr to be subtype of Number to make it support auto-promotion of alrithmetic operator involving AbstractArray.
+as a unified type wrapper for `MathTerm`. 
+- Fields:
+    - `repr::MathTerm`: wrapped math terms, including `Num`, `Var`, `UnaryTerm`, and `BinaryTerm`
 
-
-
-fields:
-- `repr::MathTerm`: wrapped math terms, including `Var`, `UnaryTerm`, and `BinaryTerm`
+Note: we need `MathExpr<:Number` to make it support auto-promotion of arithmetic operator involving `AbstractArray`.
 """
 struct MathExpr <: Number
     repr::MathTerm
 end
 "extend constructor for `Number`"
 MathExpr(x::Number) = MathExpr(Var(x))
-
-"helper function to get the datatype of a `MathExpr`"
-symtype(m::MathExpr) = symtype(m.repr)
-
-"helper function for general case"
-symtype(x) = typeof(x)
-
 
 "get the string representation for `MathTerm`"
 function _get_string_repr_for_math_term(m::MathTerm)::String
@@ -101,27 +64,37 @@ end
 Base.show(io::IO, m::MathExpr) = print(io, _get_string_repr_for_math_term(m.repr))
 
 
-# ======================================= Symbolic Variable Declaration =======================================
+
+"helper function to get the datatype of a `MathExpr`"
+symtype(m::MathExpr) = symtype(m.repr)
+
+"helper function for general case"
+symtype(x) = typeof(x)
+
+
+# ======================================== Macro for Symbolic Variable Declaration ===================================================
+const DEFAULT_SYM_DATATYPE::Type = Float64 # concrete type is preferred for defaut!
+
 """
-Macro to Declare Multiple Symbolic Variables `<: MathExpr`, with Optional Type Annotations
+Macro to Declare Symbolic Variables <: MathExpr, with Optional Type Annotations
 ---
 Example usage:
 ```julia
-@vars x y::UInt32 z::Matrix{ComplexF64} # declare `x` as Float64, `y` as UInt32, and `z` as Matrix{ComplexF64}
+@vars x, y::UInt32, z::Matrix{ComplexF64} # declare `x` as `DEFAULT_SYM_DATATYPE`, `y` as `UInt32`, and `z` as `Matrix{ComplexF64}`
 ```
-If type is not specified, the default type `DEFAULT_SYM_DATATYPE` is used.
+If type is not specified, the default type `DEFAULT_SYM_DATATYPE=Float64` is set (you can modify this constant).
 """
-macro vars(ex...)
+macro vars(ex)
     exprs = Expr(:block)  # Initialize an expression block to hold all declarations
-    for item in ex
-        if isa(item, Expr) && item.head == :(::) && isa(item.args[1], Symbol) # if with type annotations
-            var_name = item.args[1]
-            var_type = item.args[2]
+    for var_input in ex.args
+        if isa(var_input, Expr) && var_input.head == :(::) && isa(var_input.args[1], Symbol) # if with type annotations
+            var_name = var_input.args[1]
+            var_type = var_input.args[2]
             # Create a Sym of the specified type, wrap it in Var, and assign it to var_name
             new_var_expr = :($(esc(var_name)) = _sym($(esc(var_type)), $(string(var_name))) |> Var |> MathExpr)
-        elseif isa(item, Symbol)
+        elseif isa(var_input, Symbol)
             # Create a Sym with the default type, wrap it in Var, and assign it to var_name
-            new_var_expr = :($(esc(item)) = _sym(DEFAULT_SYM_DATATYPE, $(string(item))) |> Var |> MathExpr)
+            new_var_expr = :($(esc(var_input)) = _sym(DEFAULT_SYM_DATATYPE, $(string(var_input))) |> Var |> MathExpr)
         else
             error("Invalid argument to @vars. Expect symbols or type annotations.")
         end
@@ -129,3 +102,20 @@ macro vars(ex...)
     end
     return exprs
 end
+
+
+
+# ======================================== Type Conversion and Promotion Rules ===================================================
+
+# important to make sure the construction of array and sparse array of both symbolic and numerical values to be OK
+Base.convert(::Type{U}, x::T) where {U<:Sym,T<:Number} = _sym(x)
+
+
+# important to make sure parametric type is correctly inferred. For example `[1,x] isa Vector{MathExpr}` instead of `Vector{Number}`
+Base.convert(::Type{U}, x::T) where {U<:MathExpr,T<:Number} = MathExpr(Num(x))
+
+
+# these two promotion rules will implicitly invoke the above `convert(::Type{MathExpr}, x::T) where {T<:Number}`
+Base.promote_rule(::Type{T}, ::Type{S}) where {T<:MathExpr,S<:Number} = MathExpr
+Base.promote_rule(::Type{S}, ::Type{T}) where {T<:MathExpr,S<:Number} = MathExpr
+Base.promote_rule(::Type{S}, ::Type{T}) where {T<:MathTerm,S<:MathTerm} = MathExpr

@@ -1,10 +1,7 @@
-# ============================================================================================================================
-# =================================== Pre-defined and User-defined Math Operations ===========================================
-# ============================================================================================================================
 """
 Pre-defined Unary Operators
 ---
-It can be changed with user-defined operators through `register_op`
+It can be modified with user-defined or user-redefined operators through `register_op!` method
 # """
 const UNARY_OP_SET = Set{Symbol}([
     # numeric type constructors
@@ -33,7 +30,7 @@ const UNARY_OP_SET = Set{Symbol}([
     :ComplexF16,
 
     # arithmetic functions
-    :-,
+    :-, # negative
     :inv,
     :abs,
     :real,
@@ -73,7 +70,7 @@ const UNARY_OP_SET = Set{Symbol}([
 """
 Pre-defined Binary Operators
 ---
-It can be changed with user-defined operators through `register_op`
+It can be modified with user-defined or user-redefined operators through `register_op!` method
 """
 const BINARY_OP_SET = Set{Symbol}([
     # arithmetic functions
@@ -88,58 +85,74 @@ const BINARY_OP_SET = Set{Symbol}([
     # other functions
     :log,
     :atan,
+    :mod,
+    :rem,
+    :div,
+    :gcd,
+    :lcm,
+    # linear algebra functions (require `using LinearAlgebra`)
+    :dot,
+    :cross,
 ])
 
 
-# ============================================================================================================================
-# ======================================== Operator Registration and Updates =================================================
-# ============================================================================================================================
+"""
+Register Pre-defined Operators to the Global Method Table
+---
+- Args:
+    - `op::Symbol`: the operator to be registered
+    - `nargs::Int64`: number of arguments of the operator (only support unary and binary operators now)
+- Named Args:
+    - `module_name::Symbol`: the module where the operator is defined (default is `:Main`, i.e., the `Main` module)
+"""
 function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_name::Symbol=:Main)
+    # n_op_import = 0
     try
-        println("  Importing Predefined Op ————————————————————————————— `$module_name.$op`")
+        # println("  Importing Predefined Op ————————————————————————————— `$module_name.$op`")
 
         if nargs == 1
             # general case (without simplification)
-            @eval (($module_name.$op)(x::YAN.MathExpr) = YAN.UnaryTerm(Symbol($op), x.repr) |> YAN.MathExpr)
-            @eval (($module_name.$op)(x::YAN.MathTerm) = YAN.UnaryTerm(Symbol($op), x)) # we also need this for fast evaluation
+            @eval (($module_name.$op)(x::MathExpr) = UnaryTerm(Symbol($op), x.repr) |> MathExpr)
+            @eval (($module_name.$op)(x::MathTerm) = UnaryTerm(Symbol($op), x)) # we also need this for fast evaluation
 
 
         elseif nargs == 2
             # general case
-            @eval (($module_name.$op)(x::YAN.MathExpr, y::YAN.MathExpr) = YAN.BinaryTerm(Symbol($op), x.repr, y.repr) |> YAN.MathExpr)
-            @eval (($module_name.$op)(x::YAN.MathTerm, y::YAN.MathTerm)::YAN.MathTerm = YAN.BinaryTerm(Symbol($op), x, y)) # we also need this for fast evaluation
+            @eval (($module_name.$op)(x::MathExpr, y::MathExpr) = BinaryTerm(Symbol($op), x.repr, y.repr) |> MathExpr)
+            @eval (($module_name.$op)(x::MathTerm, y::MathTerm)::MathTerm = BinaryTerm(Symbol($op), x, y)) # we also need this for fast evaluation
 
-            @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x.repr, YAN.Num(y)) |> YAN.MathExpr)
-            @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y))) # we also need this for fast evaluation
+            @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x.repr, Num(y)) |> MathExpr)
+            @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
 
-            @eval (($module_name.$op)(x::T, y::YAN.MathExpr) where {T<:Number} = YAN.BinaryTerm(Symbol($op), YAN.Num(x), y.repr) |> YAN.MathExpr)
-            @eval (($module_name.$op)(x::T, y::YAN.MathTerm) where {T<:Number} = YAN.BinaryTerm(Symbol($op), YAN.Num(x), y)) # we also need this for fast evaluation
+            @eval (($module_name.$op)(x::T, y::MathExpr) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y.repr) |> MathExpr)
+            @eval (($module_name.$op)(x::T, y::MathTerm) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y)) # we also need this for fast evaluation
 
 
             # Because `Base.^(::Number, ::Integer)` is already defined. we need to take extra efforts to avoid type ambiguities here (recall that we set `MathExpr<:Number`)
             if op == :^
-                @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Integer} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
-                @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Integer} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y))) # we also need this for fast evaluation
+                @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Integer} = ($module_name.$op)(x.repr, y) |> MathExpr)
+                @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Integer} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
 
-                @eval (($module_name.$op)(x::YAN.MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.repr, y) |> YAN.MathExpr)
-                @eval (($module_name.$op)(x::YAN.MathTerm, y::T) where {T<:Number} = YAN.BinaryTerm(Symbol($op), x, YAN.Num(y))) # we also need this for fast evaluation
+                @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.repr, y) |> MathExpr)
+                @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
             end
         end
 
         # specific for construction of boolean expressions
-        # @eval Base.isless(x::YAN.MathExpr, y::Type{YAN.MathExpr}) = YAN.BinaryTerm(:<, x.repr, y.repr) |> YAN.MathExpr
+        # @eval Base.isless(x::MathExpr, y::Type{MathExpr}) = BinaryTerm(:<, x.repr, y.repr) |> MathExpr
 
         # specific for construction of AbstractArrray
-        @eval Base.zero(::Type{YAN.MathExpr}) = YAN.MathExpr(Num(0))
-        @eval Base.one(::Type{YAN.MathExpr}) = YAN.MathExpr(Num(1))
+        @eval Base.zero(::Type{MathExpr}) = MathExpr(Num(0))
+        @eval Base.one(::Type{MathExpr}) = MathExpr(Num(1))
 
 
         # escape to `YAN` module
         @eval (export $op)
 
+        # println("Importing Predefined Op... Done!")
+
         return (op, nargs)
     catch
-
         @warn "  Skipped: `$op` cannot be found in the method table of `$module_name`!"
     end
 end
@@ -147,18 +160,20 @@ end
 
 
 """
-Generate global method tables for predefined unary and binary operators
+Load the Global Method Table for Pre-defined Operators
 ---
-This should only be called at the beginning when the package is loaded.
+from `UNARY_OP_SET` and `BINARY_OP_SET`, to support easy construction of math expression with pre-defined oprators (such as `+`, `-`, `*`, `/`, etc.). 
+
+This should be called at the beginning when the package is loaded.
 """
-function initialize_global_method_table_for_pre_defined_op!()
-    for pkg in YAN.MODULE_DEPENDENCE
-        for op in YAN.UNARY_OP_SET
+function load_global_method_table_for_pre_defined_op!()
+    for pkg in MODULE_DEPENDENCE
+        for op in UNARY_OP_SET
             if op in names(eval(pkg))
                 register_op_to_global_method_table!(op, 1; module_name=pkg)
             end
         end
-        for op in YAN.BINARY_OP_SET
+        for op in BINARY_OP_SET
             if op in names(eval(pkg))
                 register_op_to_global_method_table!(op, 2; module_name=pkg)
             end
@@ -171,10 +186,10 @@ end
 """
 Register a User-defined Operator and Update the Operator Table
 ---
-Arguments:
-- `op::Symbol`: the symbol representation of the user-defined operator
+- Args:
+    - `func::Function`: the function to be registered
 """
-function register_op(func::Function; module_name::Symbol=:Main)
+function register_op!(func::Function; module_name::Symbol=:Main)
     if string(getfield(first(methods(func)), :name))[1] == '#'
         error("Anonymous functions cannot be registered! Please define the function with an Explicit Name!")
     end
@@ -184,10 +199,10 @@ function register_op(func::Function; module_name::Symbol=:Main)
     if Symbol(func) in names(eval(module_name))
         @match nargs begin
             1 => begin
-                @eval push!(YAN.UNARY_OP_SET, Symbol($func))
+                @eval push!(UNARY_OP_SET, Symbol($func))
             end
             2 => begin
-                @eval push!(YAN.BINARY_OP_SET, Symbol($func))
+                @eval push!(BINARY_OP_SET, Symbol($func))
             end
             _ => error("Now only unary and binary operators are supported!")
         end

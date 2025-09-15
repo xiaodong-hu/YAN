@@ -1,6 +1,3 @@
-# ============================================================================================================================
-# ====================================== Substitutions, Lambdification, and Evaluation =======================================
-# ============================================================================================================================
 """
 Substitute `MathExpr` Recursively.
 """
@@ -26,14 +23,19 @@ Replace ALL like Mathematica
 ---
 Keep `_iterative_substitute` until no more substitution can be made.
 """
-function replace_all(m::MathTerm, formated_sub_rules::Dict{MathTerm,MathTerm})::MathTerm
+function replace_all(m::MathTerm, formated_sub_rules::Dict{MathTerm,MathTerm}; n_depth::Int=4096)::MathTerm
     new_m = m
-    while true
+    n_substitutions = 0
+    while n_substitutions <= n_depth
         new_m = _iterative_substitute(new_m, formated_sub_rules)
+        n_substitutions += 1
         if new_m == m
             break
         end
         m = new_m
+    end
+    if n_substitutions > n_depth
+        @warn "Check Input: Maximum substitution depth `n_depth = $n_depth` is reached. There might be cyclic substitutions!"
     end
     return new_m
 end
@@ -41,12 +43,13 @@ end
 
 
 
-"""
-Substitute Symbolic Expression `MathExpr` with a Dict of Rules
----
-Here the `input_rules` support symbolic, numeric, and even expressions.
 
-The strategy is to first format the substitution rules to standard form `Dict{MathTerm,MathTerm}`, and then perform substitution recursively.
+"""
+_Recursive_ Symbolic Substitution of `MathExpr` with a Dict of Rules `input_rules`
+---
+Here both the key and value of the `input_rules::Dict{T,U}` support symbolic and numeric expressions.
+
+The strategy is to first format the substitution rules to standard form `Dict{MathTerm,MathTerm}`, and then perform substitution _recursively_ (in a similar way as Mathematica's `ReplaceAll[]`).
 """
 function subs(m::MathExpr, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {T,U}
     formated_sub_rules = Dict{MathTerm,MathTerm}()
@@ -75,7 +78,7 @@ function subs(m::MathExpr, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {
     end
 end
 subs(m::Number, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {T,U} = m
-subs(A::AbstractArray{T,N}, input_sub_rules::Dict{U,V}; lazy::Bool=false) where {T,U,V,N} = subs.(A, Ref(input_sub_rules); lazy=lazy)
+subs(A::AbstractArray{T,N}, input_sub_rules::Dict{U,V}; lazy::Bool=false) where {T,U,V,N} = map(x -> subs(x, input_sub_rules; lazy=lazy), A)
 
 "Evaluation of a `MathTerm` Expression"
 function evaluate(m::MathTerm)::Union{MathTerm,Number}
@@ -128,5 +131,5 @@ free_symbols(m::MathExpr) = free_symbols(m.repr)
 free_symbols(::Number) = Set{MathExpr}()
 
 "get free symbol for `AbstractArray` (reduce from `free_symbols` of each element)"
-free_symbols(A::AbstractArray) = reduce(∪, free_symbols.(A))
+free_symbols(A::AbstractArray) = mapreduce(free_symbols, ∪, A)
 free_symbols(A::AbstractSparseArray) = free_symbols(A.nzval)

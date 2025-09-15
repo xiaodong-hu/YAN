@@ -8,16 +8,21 @@ for pkg in MODULE_DEPENDENCE
     @eval (using $pkg) # import dependency modules *within* `YAN`
 end
 
-export DEFAULT_SYM_DATATYPE, MODULE_DEPENDENCE, UNARY_OP_SET, BINARY_OP_SET
-export Sym, Var, UnaryTerm, BinaryTerm, MathExpr
-export sym, symtype, @vars, initialize_global_method_table_for_pre_defined_op!, register_op, subs, evaluate, free_symbols
+export DEFAULT_SYM_DATATYPE, INITIALIZE_PREDEFINED_OP, MODULE_DEPENDENCE, UNARY_OP_SET, BINARY_OP_SET
+export Sym, Num, Var, UnaryTerm, BinaryTerm, MathExpr
+export _sym, symtype, @vars, load_global_method_table_for_pre_defined_op!, register_op!, subs, evaluate, free_symbols
 
 
 # infrastructure
 include("infrastructure/sym_and_expr.jl")
-include("infrastructure/type_conversion_and_promotion.jl")
 include("infrastructure/op_table.jl")
-# YAN.initialize_global_method_table_for_pre_defined_op!() # initialize the pre-defined operator table
+
+const INITIALIZE_PREDEFINED_OP = true
+if INITIALIZE_PREDEFINED_OP
+    @info "Initializing Pre-defined Operator Table ..."
+    YAN.load_global_method_table_for_pre_defined_op!() # initialize the pre-defined operator table
+    @info "  Done."
+end
 
 # AST related
 include("ast/subs_and_eval.jl")
