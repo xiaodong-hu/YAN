@@ -48,8 +48,8 @@ ex = [x x+1; x^2 1//x]
 @test subs.(ex, Ref(Dict(x => 2))) .|> evaluate == [2 3; 4 1//2]
 ```
 
-## Benchmark
-Symbolic substituion and evaluation on huge 100*100 matrix of form $A_{ij}=\sin(ix+jy)$ and of assignment $x=1, y=2$
+## Benchmark vs `SymEngine.jl`
+Symbolic substituion and evaluation on huge 100*100 matrix of form $A_{ij}=\sin(ix+jy)$ and of assignment $x=1, y=2$:
 ```julia
 using YAN, BenchmarkTools
 
@@ -59,14 +59,28 @@ using YAN, BenchmarkTools
     for i in 1:100, j in 1:100
         test_array[i, j] = sin(i * x + j * y)
     end
-    ex = YAN.subs.(test_array, Ref(Dict(x => 1, y => 2)); lazy=false)
+    ex = YAN.subs.(test_array, Ref(Dict(x => 1, y => 2)); lazy=true) # result in element of raw form of `sin(((1 * 1) + (1 * 2)))` without any simplification
 end
 ```
-finishes in `27.643 ms (590128 allocations: 20.14 MiB)` in a single thread of `13th Gen Intel i7-1365U` on my laptop.
+finishes in `31.208 ms (850698 allocations: 24.43 MiB)` in a single thread of `13th Gen Intel i7-1365U` on my laptop. 
+> Note: It cost more memory because we store symbolic expressions based on its string representation (rather than a `Ptr`) as in `SymEngine.jl`, but it is still very efficient.
+
+While the same task with `SymEngine.jl`:  
+```julia 
+@btime begin
+    SymEngine.@vars x y
+    test_array = Matrix{SymEngine.Basic}(undef, 100, 100)
+    for i in axes(test_array,1), j in axes(test_array,2)
+        test_array[i, j] = sin(i * x + j * y)
+    end
+    ex = SymEngine.subs.(test_array, Ref(Dict(x => 1, y => 2))) # result in element of the form of `sin(3)` under some basic simplification
+end
+```
+finishes in `33.292 ms (220034 allocations: 4.43 MiB)`
 
 
 ## Pre-defined Operators
-The operator set can be changed with user-defined operators through method `register_op(::Symbol)`
+The operator set can be changed with user-defined operators through method `register_op!(::Symbol)`
 ```julia
 const UNARY_OP_SET = Set{Symbol}([
     # numeric type constructors
@@ -150,14 +164,17 @@ const BINARY_OP_SET = Set{Symbol}([
 
 ### Registration of User-defined Operators (todo!)
 ```julia
-function my_func(x)
-    (x,x)
+my_func = x -> (x,x) # user-defined function, but binding to a variable
+# register_op!(my_func) # error because `my_func` is an anonymous function without an explicit name
+
+# define the function with an explicit name
+function my_func2(x)
+    (x, x)
 end
+register_op!(my_func2) # success
+@assert :my_func2 in UNARY_OP_SET
 
-register_op(:my_func) # register to `UNARY_OP_SET`
-@assert :my_func in UNARY_OP_SET
-
-# todo for for symbols that are not defined yet
+# todo for symbols that are not defined yet
 ```
 
 ## Todo

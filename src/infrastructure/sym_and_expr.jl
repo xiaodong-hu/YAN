@@ -76,25 +76,25 @@ symtype(x) = typeof(x)
 const DEFAULT_SYM_DATATYPE::Type = Float64 # concrete type is preferred for defaut!
 
 """
-Macro to Declare Symbolic Variables <: MathExpr, with Optional Type Annotations
+The Vararg Macro to Declare Symbolic Variables <: MathExpr, with Optional Type Annotations
 ---
 Example usage:
 ```julia
-@vars x, y::UInt32, z::Matrix{ComplexF64} # declare `x` as `DEFAULT_SYM_DATATYPE`, `y` as `UInt32`, and `z` as `Matrix{ComplexF64}`
+@vars x y::UInt32 z::Matrix{ComplexF64} # declare `x` as `DEFAULT_SYM_DATATYPE`, `y` as `UInt32`, and `z` as `Matrix{ComplexF64}`
 ```
 If type is not specified, the default type `DEFAULT_SYM_DATATYPE=Float64` is set (you can modify this constant).
 """
-macro vars(ex)
+macro vars(ex...)
     exprs = Expr(:block)  # Initialize an expression block to hold all declarations
-    for var_input in ex.args
-        if isa(var_input, Expr) && var_input.head == :(::) && isa(var_input.args[1], Symbol) # if with type annotations
-            var_name = var_input.args[1]
-            var_type = var_input.args[2]
+    for item in ex
+        if isa(item, Expr) && item.head == :(::) && isa(item.args[1], Symbol) # if with type annotations
+            var_name = item.args[1]
+            var_type = item.args[2]
             # Create a Sym of the specified type, wrap it in Var, and assign it to var_name
             new_var_expr = :($(esc(var_name)) = _sym($(esc(var_type)), $(string(var_name))) |> Var |> MathExpr)
-        elseif isa(var_input, Symbol)
+        elseif isa(item, Symbol)
             # Create a Sym with the default type, wrap it in Var, and assign it to var_name
-            new_var_expr = :($(esc(var_input)) = _sym(DEFAULT_SYM_DATATYPE, $(string(var_input))) |> Var |> MathExpr)
+            new_var_expr = :($(esc(item)) = _sym(DEFAULT_SYM_DATATYPE, $(string(item))) |> Var |> MathExpr)
         else
             error("Invalid argument to @vars. Expect symbols or type annotations.")
         end

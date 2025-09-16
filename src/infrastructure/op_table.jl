@@ -191,7 +191,7 @@ Register a User-defined Operator and Update the Operator Table
 """
 function register_op!(func::Function; module_name::Symbol=:Main)
     if string(getfield(first(methods(func)), :name))[1] == '#'
-        error("Anonymous functions cannot be registered! Please define the function with an Explicit Name!")
+        error("Check Input: Anonymous functions without an explicit name cannot be registered! Please define the function with an explicit name, rather than binding with a variable only!")
     end
     nargs = (getfield(first(methods(func)), :nargs) - 1)
 
@@ -199,14 +199,17 @@ function register_op!(func::Function; module_name::Symbol=:Main)
     if Symbol(func) in names(eval(module_name))
         @match nargs begin
             1 => begin
+                @info "Registering Operator `$func` with $nargs arguments to `UNARY_OP_SET`..."
                 @eval push!(UNARY_OP_SET, Symbol($func))
             end
             2 => begin
+                @info "Registering Operator `$func` with $nargs arguments to `BINARY_OP_SET`..."
                 @eval push!(BINARY_OP_SET, Symbol($func))
             end
-            _ => error("Now only unary and binary operators are supported!")
+            _ => error("Unimplemented: Now only unary and binary operators are supported!")
         end
     else
         @warn "Skipped! Operator `$func` is not defined in `$module_name`!"
     end
+    @info "Done."
 end
