@@ -120,5 +120,3 @@ Base.convert(::Type{U}, x::T) where {U<:MathExpr,T<:Number} = MathExpr(Num(x))
 Base.promote_rule(::Type{T}, ::Type{S}) where {T<:MathExpr,S<:Number} = MathExpr
 Base.promote_rule(::Type{S}, ::Type{T}) where {T<:MathExpr,S<:Number} = MathExpr
 Base.promote_rule(::Type{S}, ::Type{T}) where {T<:MathTerm,S<:MathTerm} = MathExpr
-
-

@@ -112,34 +112,34 @@ function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_na
 
         if nargs == 1
             # general case (without simplification)
-            @eval (($module_name.$op)(x::MathExpr) = UnaryTerm(Symbol($op), x.repr) |> MathExpr)
+            @eval (($module_name.$op)(x::MathExpr) = UnaryTerm(Symbol($op), x.content) |> MathExpr)
             @eval (($module_name.$op)(x::MathTerm) = UnaryTerm(Symbol($op), x)) # we also need this for fast evaluation
 
 
         elseif nargs == 2
             # general case
-            @eval (($module_name.$op)(x::MathExpr, y::MathExpr) = BinaryTerm(Symbol($op), x.repr, y.repr) |> MathExpr)
+            @eval (($module_name.$op)(x::MathExpr, y::MathExpr) = BinaryTerm(Symbol($op), x.content, y.content) |> MathExpr)
             @eval (($module_name.$op)(x::MathTerm, y::MathTerm)::MathTerm = BinaryTerm(Symbol($op), x, y)) # we also need this for fast evaluation
 
-            @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x.repr, Num(y)) |> MathExpr)
+            @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x.content, Num(y)) |> MathExpr)
             @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
 
-            @eval (($module_name.$op)(x::T, y::MathExpr) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y.repr) |> MathExpr)
+            @eval (($module_name.$op)(x::T, y::MathExpr) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y.content) |> MathExpr)
             @eval (($module_name.$op)(x::T, y::MathTerm) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y)) # we also need this for fast evaluation
 
 
             # Because `Base.^(::Number, ::Integer)` is already defined. we need to take extra efforts to avoid type ambiguities here (recall that we set `MathExpr<:Number`)
             if op == :^
-                @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Integer} = ($module_name.$op)(x.repr, y) |> MathExpr)
+                @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Integer} = ($module_name.$op)(x.content, y) |> MathExpr)
                 @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Integer} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
 
-                @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.repr, y) |> MathExpr)
+                @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.content, y) |> MathExpr)
                 @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
             end
         end
 
         # specific for construction of boolean expressions
-        # @eval Base.isless(x::MathExpr, y::Type{MathExpr}) = BinaryTerm(:<, x.repr, y.repr) |> MathExpr
+        # @eval Base.isless(x::MathExpr, y::Type{MathExpr}) = BinaryTerm(:<, x.content, y.content) |> MathExpr
 
         # specific for construction of AbstractArrray
         @eval Base.zero(::Type{MathExpr}) = MathExpr(Num(0))

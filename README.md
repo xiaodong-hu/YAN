@@ -29,23 +29,23 @@ struct my_datatype{T} end # user-defined datatype (see below)
 ```
 
 ### Substitution and Evaluation 
-Substitution is not lazy by default. But it can be **literal**, i.e. **lazy without any evaluation**, even for numerical parts like `1 * 2`.
+Substitution is **literal**, i.e. **lazy without any evaluation**, even for numerical parts like `1 => 2`.
 ```julia 
 # scalar substitution to symbolic expression
 ex = sin(x) * y / (exp(im * z) + 1)^x
-@test subs(ex, Dict(x => y, y => z, z => x)) == sin(y) * z / (exp(im * x) + 1)^y
+@assert subs(ex, Dict(x => y, y => z, z => x)) == sin(y) * z / (exp(im * x) + 1)^y
 
 # scalar substitution to numerical result (with evaluation)
 ex = x^x
-@test subs(ex, Dict(x => 0); lazy=true) |> evaluate == 1
+@assert subs(ex, Dict(x => 0); lazy=true) |> evaluate == 1
 
 # array substitution to symbolic expression
 ex = [sin(x) 1-cos(y); x^tan(z) 2*x]
-@test subs.(ex, Ref(Dict(1 => x, x => y, y => z, z => x))) == [sin(y) x-cos(z); y^tan(x) 2*y] # Note: even 1 is replaced!
+@assert subs.(ex, Ref(Dict(1 => x, x => y, y => z, z => x))) == [sin(y) x-cos(z); y^tan(x) 2*y] # Note: even 1 is replaced!
 
 # array substitution to numerical result (with evaluation)
 ex = [x x+1; x^2 1//x]
-@test subs.(ex, Ref(Dict(x => 2))) .|> evaluate == [2 3; 4 1//2]
+@assert subs.(ex, Ref(Dict(x => 2))) .|> evaluate == [2 3; 4 1//2]
 ```
 
 ## Benchmark vs `SymEngine.jl`

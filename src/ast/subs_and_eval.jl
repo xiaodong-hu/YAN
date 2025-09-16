@@ -43,7 +43,6 @@ end
 
 
 
-
 """
 _Recursive_ Symbolic Substitution of `MathExpr` with a Dict of Rules `input_rules`
 ---
@@ -55,13 +54,13 @@ function subs(m::MathExpr, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {
     formated_sub_rules = Dict{MathTerm,MathTerm}()
     for (k, v) in input_sub_rules
         formated_key = @match k begin
-            ::MathExpr => k.repr
+            ::MathExpr => k.content
             ::MathTerm => k
             _ => Num(k)
         end
 
         formated_value = @match v begin
-            ::MathExpr => v.repr
+            ::MathExpr => v.content
             ::MathTerm => v
             ::Number => Num(v)
         end
@@ -70,7 +69,7 @@ function subs(m::MathExpr, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {
     end
 
     # @show formated_sub_rules
-    new_expr::MathExpr = replace_all(m.repr, formated_sub_rules) |> MathExpr
+    new_expr::MathExpr = replace_all(m.content, formated_sub_rules) |> MathExpr
     if lazy
         return new_expr
     else
@@ -98,7 +97,7 @@ evaluate(x::Number) = x
 
 "Evaluation of a `MathExpr` Expression"
 evaluate(x::MathExpr)::Union{Number,MathExpr} = begin
-    eval_res = evaluate(x.repr)
+    eval_res = evaluate(x.content)
     @match eval_res begin
         ::MathTerm => MathExpr(eval_res)
         ::Number => eval_res
@@ -127,7 +126,7 @@ function free_symbols(m::MathTerm)
     end
     return var_set
 end
-free_symbols(m::MathExpr) = free_symbols(m.repr)
+free_symbols(m::MathExpr) = free_symbols(m.content)
 free_symbols(::Number) = Set{MathExpr}()
 
 "get free symbol for `AbstractArray` (reduce from `free_symbols` of each element)"
