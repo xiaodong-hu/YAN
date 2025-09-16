@@ -35,6 +35,7 @@ const UNARY_OP_SET = Set{Symbol}([
     :abs,
     :real,
     :imag,
+    :conj,
     :sqrt,
     # trigonometric functions
     :sin,
@@ -107,54 +108,68 @@ Register Pre-defined Operators to the Global Method Table
 """
 function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_name::Symbol=:Main)
     # n_op_import = 0
-    try
-        # println("  Importing Predefined Op ————————————————————————————— `$module_name.$op`")
+    # try
 
-        if nargs == 1
-            # general case (without simplification)
-            @eval (($module_name.$op)(x::MathExpr) = UnaryTerm(Symbol($op), x.content) |> MathExpr)
-            @eval (($module_name.$op)(x::MathTerm) = UnaryTerm(Symbol($op), x)) # we also need this for fast evaluation
+    # catch
+    #     @warn "  Skipped: `$op` cannot be found in the method table of `$module_name`!"
+    # end
 
+    # println("  Importing Predefined Op ————————————————————————————— `$module_name.$op`")
 
-        elseif nargs == 2
-            # general case
-            @eval (($module_name.$op)(x::MathExpr, y::MathExpr) = BinaryTerm(Symbol($op), x.content, y.content) |> MathExpr)
-            @eval (($module_name.$op)(x::MathTerm, y::MathTerm)::MathTerm = BinaryTerm(Symbol($op), x, y)) # we also need this for fast evaluation
+    if nargs == 1
+        # general case (without simplification)
+        @eval (($module_name.$op)(x::MathExpr) = UnaryTerm(Symbol($op), x.content) |> MathExpr)
+        @eval (($module_name.$op)(x::MathTerm) = UnaryTerm(Symbol($op), x)) # we also need this for fast evaluation
 
-            @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x.content, Num(y)) |> MathExpr)
-            @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
-
-            @eval (($module_name.$op)(x::T, y::MathExpr) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y.content) |> MathExpr)
-            @eval (($module_name.$op)(x::T, y::MathTerm) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y)) # we also need this for fast evaluation
-
-
-            # Because `Base.^(::Number, ::Integer)` is already defined. we need to take extra efforts to avoid type ambiguities here (recall that we set `MathExpr<:Number`)
-            if op == :^
-                @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Integer} = ($module_name.$op)(x.content, y) |> MathExpr)
-                @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Integer} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
-
-                @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.content, y) |> MathExpr)
-                @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
+        # specific for linear algebra, pre-define some basic arithmetic operators first
+        if module_name == :LinearAlgebra
+            for pre_required_op in (:+, :-, :*, :/, :^)
+                @assert pre_required_op in BINARY_OP_SET
+                @eval register_op_to_global_method_table!(Symbol($pre_required_op), 2; module_name=:Base) # we need these operators to be defined first
             end
         end
+        if op == :det
+            @eval (($module_name.$op)(A::AbstractMatrix{MathExpr})::MathExpr = sym_det(A))
+        elseif op == :norm
+            @eval (($module_name.$op)(x::AbstractArray{<:MathExpr}, p::Real=2)::MathExpr = sym_norm(x, p))
+        end
 
-        # specific for construction of boolean expressions
-        # @eval Base.isless(x::MathExpr, y::Type{MathExpr}) = BinaryTerm(:<, x.content, y.content) |> MathExpr
+    elseif nargs == 2
+        # general case
+        @eval (($module_name.$op)(x::MathExpr, y::MathExpr) = BinaryTerm(Symbol($op), x.content, y.content) |> MathExpr)
+        @eval (($module_name.$op)(x::MathTerm, y::MathTerm)::MathTerm = BinaryTerm(Symbol($op), x, y)) # we also need this for fast evaluation
 
-        # specific for construction of AbstractArrray
-        @eval Base.zero(::Type{MathExpr}) = MathExpr(Num(0))
-        @eval Base.one(::Type{MathExpr}) = MathExpr(Num(1))
+        @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x.content, Num(y)) |> MathExpr)
+        @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
+
+        @eval (($module_name.$op)(x::T, y::MathExpr) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y.content) |> MathExpr)
+        @eval (($module_name.$op)(x::T, y::MathTerm) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y)) # we also need this for fast evaluation
 
 
-        # escape to `YAN` module
-        @eval (export $op)
+        # Because `Base.^(::Number, ::Integer)` is already defined. we need to take extra efforts to avoid type ambiguities here (recall that we set `MathExpr<:Number`)
+        if op == :^
+            @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Integer} = ($module_name.$op)(x.content, y) |> MathExpr)
+            @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Integer} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
 
-        # println("Importing Predefined Op... Done!")
-
-        return (op, nargs)
-    catch
-        @warn "  Skipped: `$op` cannot be found in the method table of `$module_name`!"
+            @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.content, y) |> MathExpr)
+            @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
+        end
     end
+
+    # specific for construction of boolean expressions
+    # @eval Base.isless(x::MathExpr, y::Type{MathExpr}) = BinaryTerm(:<, x.content, y.content) |> MathExpr
+
+    # specific for construction of AbstractArrray
+    @eval Base.zero(::Type{MathExpr}) = MathExpr(Num(0))
+    @eval Base.one(::Type{MathExpr}) = MathExpr(Num(1))
+
+
+    # escape to `YAN` module
+    @eval (export $op)
+
+    # println("Importing Predefined Op... Done!")
+
+    return (op, nargs)
 end
 
 
