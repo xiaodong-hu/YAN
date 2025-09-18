@@ -114,11 +114,17 @@ Base.convert(::Type{U}, x::T) where {U<:Sym,T<:Number} = _sym(x)
 
 # important to make sure parametric type is correctly inferred. For example `[1,x] isa Vector{MathExpr}` instead of `Vector{Number}`
 Base.convert(::Type{U}, x::T) where {U<:MathExpr,T<:Number} = MathExpr(Num(x))
+Base.convert(::Type{U}, x::T) where {U<:MathExpr,T<:Bool} =
+    if x
+        MathExpr(Num(1))
+    else
+        MathExpr(Num(0))
+    end
 
 
 # these two promotion rules will implicitly invoke the above `convert(::Type{MathExpr}, x::T) where {T<:Number}`
 Base.promote_rule(::Type{T}, ::Type{S}) where {T<:MathExpr,S<:Number} = MathExpr
 Base.promote_rule(::Type{S}, ::Type{T}) where {T<:MathExpr,S<:Number} = MathExpr
+Base.promote_rule(::Type{T}, ::Type{Bool}) where {T<:MathExpr} = MathExpr
+Base.promote_rule(::Type{Bool}, ::Type{T}) where {T<:MathExpr} = MathExpr
 Base.promote_rule(::Type{S}, ::Type{T}) where {T<:MathTerm,S<:MathTerm} = MathExpr
-
-

@@ -10,7 +10,7 @@ for pkg in MODULE_DEPENDENCE
 end
 
 export DEFAULT_SYM_DATATYPE, MODULE_DEPENDENCE, UNARY_OP_SET, BINARY_OP_SET
-export Sym, Num, Var, UnaryTerm, BinaryTerm, MathExpr
+export Sym, Num, Var, UnaryTerm, BinaryTerm, MathTerm, MathExpr
 export _sym, symtype, @vars, load_global_method_table_for_pre_defined_op!, register_op!, subs, evaluate, free_symbols
 
 

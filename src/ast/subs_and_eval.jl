@@ -10,9 +10,9 @@ function _iterative_substitute(m::MathTerm, formated_sub_rules::Dict{MathTerm,Ma
 
     # Recursive case: apply substitution to sub-expressions
     @match m begin
-        Num(_) || Var(_) => m # unmatched symbol or number: no need to create a new instance
-        UnaryTerm(op, arg) => UnaryTerm(op, _iterative_substitute(arg, formated_sub_rules))
-        BinaryTerm(op, left, right) => BinaryTerm(op, _iterative_substitute(left, formated_sub_rules), _iterative_substitute(right, formated_sub_rules))
+        Num(_) || Var(_) => return m # unmatched symbol or number: no need to create a new instance
+        UnaryTerm(op, arg) => return UnaryTerm(op, _iterative_substitute(arg, formated_sub_rules))
+        BinaryTerm(op, left, right) => return BinaryTerm(op, _iterative_substitute(left, formated_sub_rules), _iterative_substitute(right, formated_sub_rules))
     end
 end
 
@@ -25,18 +25,19 @@ Keep `_iterative_substitute` until no more substitution can be made.
 """
 function replace_all(m::MathTerm, formated_sub_rules::Dict{MathTerm,MathTerm}; n_depth::Int=4096)::MathTerm
     new_m = m
-    n_substitutions = 0
-    while n_substitutions <= n_depth
-        new_m = _iterative_substitute(new_m, formated_sub_rules)
-        n_substitutions += 1
-        if new_m == m
+    while true
+        old_m = new_m
+        new_m = _iterative_substitute(old_m, formated_sub_rules)
+        if new_m == old_m
             break
         end
-        m = new_m
+        n_depth -= 1
+        if n_depth <= 0
+            @warn "Maximum recursion depth reached during substitution. Possible infinite loop?"
+            break
+        end
     end
-    if n_substitutions > n_depth
-        @warn "Check Input: Maximum substitution depth `n_depth = $n_depth` is reached. There might be cyclic substitutions!"
-    end
+
     return new_m
 end
 
@@ -56,7 +57,7 @@ function subs(m::MathExpr, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {
         formated_key = @match k begin
             ::MathExpr => k.content
             ::MathTerm => k
-            _ => Num(k)
+            ::Number => Num(k)
         end
 
         formated_value = @match v begin
@@ -76,13 +77,13 @@ function subs(m::MathExpr, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {
         return evaluate(new_expr)
     end
 end
-subs(m::Number, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {T,U} = m
+# subs(m::Number, input_sub_rules::Dict{T,U}; lazy::Bool=false) where {T,U} = m
 subs(A::AbstractArray{T,N}, input_sub_rules::Dict{U,V}; lazy::Bool=false) where {T,U,V,N} = map(x -> subs(x, input_sub_rules; lazy=lazy), A)
 
 "Evaluation of a `MathTerm` Expression"
 function evaluate(m::MathTerm)::Union{MathTerm,Number}
     @match m begin
-        Num(x) => eval(x)
+        Num(x) => x
         Var(var) => m # no need to create a new instance
         UnaryTerm(op, arg) => begin
             (eval(op))(evaluate(arg))

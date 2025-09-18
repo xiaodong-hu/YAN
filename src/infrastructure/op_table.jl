@@ -123,7 +123,7 @@ function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_na
 
         # specific for linear algebra, pre-define some basic arithmetic operators first
         if module_name == :LinearAlgebra
-            for pre_required_op in (:+, :-, :*, :/, :^)
+            for pre_required_op in (:+, :-, :*, :/)
                 @assert pre_required_op in BINARY_OP_SET
                 @eval register_op_to_global_method_table!(Symbol($pre_required_op), 2; module_name=:Base) # we need these operators to be defined first
             end
@@ -132,18 +132,27 @@ function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_na
             @eval (($module_name.$op)(A::AbstractMatrix{MathExpr})::MathExpr = sym_det(A))
         elseif op == :norm
             @eval (($module_name.$op)(x::AbstractArray{<:MathExpr}, p::Real=2)::MathExpr = sym_norm(x, p))
+        elseif op == :inv
+            @eval (($module_name.$op)(A::Matrix{<:MathExpr})::Matrix{MathExpr} = sym_inv(A))
+        elseif op == :adjoint
+            @eval (($module_name.$op)(A::Matrix{<:MathExpr})::Matrix{MathExpr} = sym_adjoint(A))
+        elseif op == :transpose
+            @eval (($module_name.$op)(A::Matrix{<:MathExpr})::Matrix{MathExpr} = sym_transpose(A))
         end
 
     elseif nargs == 2
         # general case
         @eval (($module_name.$op)(x::MathExpr, y::MathExpr) = BinaryTerm(Symbol($op), x.content, y.content) |> MathExpr)
+        @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:MathTerm} = BinaryTerm(Symbol($op), x.content, y) |> MathExpr)
+        @eval (($module_name.$op)(x::T, y::MathExpr) where {T<:MathTerm} = BinaryTerm(Symbol($op), x, y.content) |> MathExpr)
+
         @eval (($module_name.$op)(x::MathTerm, y::MathTerm)::MathTerm = BinaryTerm(Symbol($op), x, y)) # we also need this for fast evaluation
 
-        @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x.content, Num(y)) |> MathExpr)
-        @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
+        @eval (($module_name.$op)(x::T, y::Number) where {T<:MathExpr} = BinaryTerm(Symbol($op), x.content, Num(y)) |> MathExpr)
+        @eval (($module_name.$op)(x::T, y::Number) where {T<:MathTerm} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
 
-        @eval (($module_name.$op)(x::T, y::MathExpr) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y.content) |> MathExpr)
-        @eval (($module_name.$op)(x::T, y::MathTerm) where {T<:Number} = BinaryTerm(Symbol($op), Num(x), y)) # we also need this for fast evaluation
+        @eval (($module_name.$op)(x::Number, y::T) where {T<:MathExpr} = BinaryTerm(Symbol($op), Num(x), y.content) |> MathExpr)
+        @eval (($module_name.$op)(x::Number, y::T) where {T<:MathTerm} = BinaryTerm(Symbol($op), Num(x), y)) # we also need this for fast evaluation
 
 
         # Because `Base.^(::Number, ::Integer)` is already defined. we need to take extra efforts to avoid type ambiguities here (recall that we set `MathExpr<:Number`)
@@ -153,6 +162,20 @@ function register_op_to_global_method_table!(op::Symbol, nargs::Int64; module_na
 
             @eval (($module_name.$op)(x::MathExpr, y::T) where {T<:Number} = ($module_name.$op)(x.content, y) |> MathExpr)
             @eval (($module_name.$op)(x::MathTerm, y::T) where {T<:Number} = BinaryTerm(Symbol($op), x, Num(y))) # we also need this for fast evaluation
+        end
+
+
+        # specific for linear algebra, pre-define some basic arithmetic operators first
+        if module_name == :LinearAlgebra
+            for pre_required_op in (:+, :-, :*, :/)
+                @assert pre_required_op in BINARY_OP_SET
+                @eval register_op_to_global_method_table!(Symbol($pre_required_op), 2; module_name=:Base) # we need these operators to be defined first
+            end
+        end
+        if op == :dot
+            @eval (($module_name.$op)(A::Vector, B::Vector)::MathExpr = sym_dot(A, B))
+            @eval (($module_name.$op)(A::T, B::Vector) where T<:Number = A * B)
+            @eval (($module_name.$op)(A::Vector, B::T) where T<:Number = B * A)
         end
     end
 

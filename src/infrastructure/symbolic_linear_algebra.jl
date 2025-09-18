@@ -1,7 +1,4 @@
 
-
-
-
 sym_norm(x::AbstractArray{<:MathExpr}, p::Real=2)::MathExpr = sum(x -> abs(x)^p, x)^inv(p)
 
 
@@ -20,7 +17,7 @@ sym_norm(x::AbstractArray{<:MathExpr}, p::Real=2)::MathExpr = sum(x -> abs(x)^p,
 # Soft Pivoting LU Decomposition for Matrix of MathExpr
 # ---
 # - Args:
-#     - `A::AbstractMatrix{<:MathExpr}`: the input matrix
+#     - `A::Matrix{<:MathExpr}`: the input matrix
 #     - `check::Bool=true`: whether to check the singularity of the matrix
 # - Returns:
 #     - `LU`: the LU factorization result
@@ -69,18 +66,17 @@ sym_norm(x::AbstractArray{<:MathExpr}, p::Real=2)::MathExpr = sum(x -> abs(x)^p,
 
 
 
-@inline minor(A, j) = @view A[2:end, 1:size(A, 2).!=j] # the minor of A by removing the first row and j-th column
+minor(A, j::Int) = @view A[2:end, 1:size(A, 2).!=j] # the minor of A by removing the first row and j-th column
+minor(A, i::Int, j::Int) = @view A[1:size(A, 1).!=i, 1:size(A, 2).!=j] # the minor of A by removing the i-th row and j-th column
+
 """
-Symbolic Determinant Function for Matrix of MathExpr
+Symbolic Determinant of `Matrix{<:MathExpr}`
 ---
 - Args:
     - `A::Matrix{<:MathExpr}`: the input square matrix
-- Returns:
-    - `MathExpr`: the symbolic evaluation of the input matrix
 """
-function sym_det(A::Matrix{<:MathExpr})::MathExpr
-    n = size(A, 1)
-    @assert length(unique(size(A))) == 1 "Error: The input matrix must be square!"
+function sym_det(A::AbstractMatrix{<:MathExpr})::MathExpr
+    n = LinearAlgebra.checksquare(A) # check if A is square and get its size
     if n == 1
         return A[1, 1]
     elseif n == 2
@@ -89,3 +85,53 @@ function sym_det(A::Matrix{<:MathExpr})::MathExpr
         return sum((-1)^(1 + j) * A[1, j] * sym_det(minor(A, j)) for j in axes(A, 2))
     end
 end
+"add method for transposed matrix"
+sym_det(A::Transpose{MathExpr,Matrix{MathExpr}})::MathExpr = sym_det(A.parent) # use the original matrix to compute the determinant
+"add method for adjointed matrix"
+sym_det(A::Adjoint{MathExpr,Matrix{MathExpr}})::MathExpr = conj(sym_det(A.parent)) # use the original matrix to compute the determinant
+
+
+"""
+Symbolic Inverse of `Matrix{<:MathExpr}`
+---
+- Args:
+    - `A::Matrix{<:MathExpr}`: the input square matrix
+"""
+function sym_inv(A::Matrix{<:MathExpr})::Matrix{MathExpr}
+    n = LinearAlgebra.checksquare(A) # check if A is square and get its size
+    adjA = Matrix{MathExpr}(undef, n, n) # the adjugate matrix (as the transpose of the cofactor matrix)
+    detA_inv = 1 / sym_det(A)
+    for i in 1:n, j in 1:n
+        adjA[i, j] = (-1)^(i + j) * sym_det(minor(A, j, i)) # note the transpose here
+    end
+    return detA_inv * adjA
+end
+sym_inv(A::StridedMatrix{<:MathExpr})::Matrix{MathExpr} = sym_inv(A)
+
+
+
+"""
+Symbolic Transpose of `Matrix{<:MathExpr}`
+"""
+function sym_transpose(A::Matrix{<:MathExpr})::Matrix{MathExpr}
+    res = Matrix{MathExpr}(undef, size(A))
+    for i in axes(A, 1), j in axes(A, 2)
+        res[j, i] = A[i, j]
+    end
+    return res
+end
+
+"""
+Symbolic Adjoint of `Matrix{<:MathExpr}`
+"""
+function sym_adjoint(A::Matrix{<:MathExpr})::Matrix{MathExpr}
+    return sym_transpose(conj.(A))
+end
+
+"""
+Symbolic Dot Product of Two `Vector{T}` and `Vector{U}`
+"""
+sym_dot(A::Vector{T}, B::Vector{U}) where {T,U} = @inbounds sum(conj(A[i]) * B[i] for i in axes(A, 1))
+# sym_dot(A::Vector{T}, B::Vector{MathExpr}) where T = @inbounds sum(conj(A[i]) * B[i] for i in axes(A, 1)) |> MathExpr
+# sym_dot(A::Vector{MathExpr}, B::Vector{T}) where T = @inbounds sum(conj(A[i]) * B[i] for i in axes(A, 1)) |> MathExpr
+
